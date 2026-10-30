@@ -1,9 +1,81 @@
 (() => {
-    const dashboard = document.querySelector('[data-live-dashboard]');
-    if (!dashboard) return;
+    const notifBell = document.getElementById('notif-bell');
+    const notifCount = document.getElementById('notif-count');
+    const notifDropdown = document.getElementById('notif-dropdown');
+    const notifList = document.getElementById('notif-list');
+    const notifTotal = document.getElementById('notif-total');
+    const role = window._notifRole || '';
 
+    const roleItems = [
+        { roles: ['Admin', 'Receptionist'], key: 'reception_tasks', icon: '🧾', color: 'amber',  label: 'Follow-up check-ins due',       link: '?page=dashboard' },
+        { roles: ['Admin', 'Doctor'],       key: 'doctor_tasks',    icon: '🩺', color: 'blue',   label: 'Patients awaiting doctor',       link: '?page=dashboard' },
+        { roles: ['Admin', 'Nurse'],        key: 'waiting_count',   icon: '💉', color: 'teal',   label: 'Patients waiting for triage',    link: '?page=dashboard' },
+        { roles: ['Admin', 'Laboratory'],   key: 'lab_count',       icon: '🔬', color: 'purple', label: 'Lab tests pending',              link: '?page=dashboard' },
+        { roles: ['Admin', 'Pharmacist'],   key: 'pharmacy_tasks',  icon: '💊', color: 'teal',   label: 'Prescriptions needing pharmacy', link: '?page=pharmacy'  },
+        { roles: ['Admin', 'Cashier'],      key: 'cashier_tasks',   icon: '💵', color: 'red',    label: 'Invoices awaiting payment',      link: '?page=dashboard' },
+    ];
+
+    function getCount(snapshot, key) {
+        const val = snapshot[key];
+        return Array.isArray(val) ? val.length : (Number(val) || 0);
+    }
+
+    function updateNotifications(snapshot) {
+        if (!notifBell) return;
+        const visible = roleItems.filter(item => item.roles.includes(role));
+        let total = 0;
+        const items = visible.map(item => {
+            const count = getCount(snapshot, item.key);
+            total += count;
+            return { ...item, count };
+        });
+        notifCount.textContent = String(total > 99 ? '99+' : total);
+        notifCount.hidden = total === 0;
+        if (notifTotal) notifTotal.textContent = total + ' pending';
+        if (notifList) {
+            notifList.replaceChildren(...items.map(item => {
+                const li = document.createElement('li');
+                li.className = 'notif-item';
+                const iconEl = document.createElement('span');
+                iconEl.className = 'notif-icon ' + item.color;
+                iconEl.textContent = item.icon;
+                const bodyEl = document.createElement('span');
+                bodyEl.className = 'notif-body';
+                const strong = document.createElement('strong');
+                strong.textContent = item.label;
+                const sub = document.createElement('span');
+                const a = document.createElement('a');
+                a.href = item.link;
+                a.textContent = 'View';
+                sub.append(a);
+                bodyEl.append(strong, sub);
+                const badge = document.createElement('span');
+                badge.className = 'notif-badge' + (item.count === 0 ? ' zero' : '');
+                badge.textContent = String(item.count);
+                li.append(iconEl, bodyEl, badge);
+                return li;
+            }));
+        }
+    }
+
+    if (notifBell && notifDropdown) {
+        notifBell.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const open = !notifDropdown.hidden;
+            notifDropdown.hidden = open;
+            notifBell.setAttribute('aria-expanded', String(!open));
+        });
+        document.addEventListener('click', () => {
+            notifDropdown.hidden = true;
+            notifBell.setAttribute('aria-expanded', 'false');
+        });
+        notifDropdown.addEventListener('click', e => e.stopPropagation());
+    }
+
+    // ── Dashboard-specific elements ──────────────────────────────────────────
+    const dashboard = document.querySelector('[data-live-dashboard]');
     const queueBody = document.getElementById('live-queue');
-    const liveStatus = dashboard.querySelector('[data-live-status]');
+    const liveStatus = dashboard?.querySelector('[data-live-status]');
     const errorLabel = document.getElementById('live-error-label')?.textContent || 'Could not refresh live data. Retrying…';
     const emptyLabel = document.getElementById('live-empty-label')?.textContent || 'No patients checked in yet today.';
     const onlineLabel = document.querySelector('[data-live-online-label]')?.textContent || 'Live updates on';
@@ -17,7 +89,7 @@
     const doctorTaskCountLabel = document.querySelector('[data-doctor-task-count-label]')?.textContent || '';
     const doctorTaskInstructions = new Map(
         [...document.querySelectorAll('[data-doctor-task-instruction]')]
-            .map((element) => [element.dataset.doctorTaskInstruction, element.textContent])
+            .map((el) => [el.dataset.doctorTaskInstruction, el.textContent])
     );
     const pharmacyTaskPanel = document.querySelector('[data-pharmacy-dashboard-tasks]');
     const pharmacyTaskStatus = pharmacyTaskPanel?.querySelector('[data-pharmacy-task-status]');
@@ -32,28 +104,29 @@
     const receptionTaskCount = receptionTaskPanel?.querySelector('[data-reception-task-count]');
     const receptionTaskQueue = document.getElementById('reception-task-queue');
     const pharmacyTaskLabels = {
-        online: document.querySelector('[data-pharmacy-task-online-label]')?.textContent || 'Updating automatically',
-        empty: document.querySelector('[data-pharmacy-task-empty-label]')?.textContent || 'No prescriptions need pharmacy action.',
-        pending: document.querySelector('[data-pharmacy-pending-label]')?.textContent || 'Prepare medicine and print the prescription slip.',
-        waiting: document.querySelector('[data-pharmacy-waiting-label]')?.textContent || 'Wait for doctor review and all laboratory results before preparation.',
-        unpaid: document.querySelector('[data-pharmacy-unpaid-label]')?.textContent || 'Wait for cashier payment; patient returns with receipt.',
-        paid: document.querySelector('[data-pharmacy-paid-label]')?.textContent || 'Verify the paid receipt and dispense medicine.',
-        open: document.querySelector('[data-pharmacy-open-label]')?.textContent || 'Open pharmacy'
+        online:  document.querySelector('[data-pharmacy-task-online-label]')?.textContent  || 'Updating automatically',
+        empty:   document.querySelector('[data-pharmacy-task-empty-label]')?.textContent   || 'No prescriptions need pharmacy action.',
+        pending: document.querySelector('[data-pharmacy-pending-label]')?.textContent      || 'Prepare medicine and print the prescription slip.',
+        waiting: document.querySelector('[data-pharmacy-waiting-label]')?.textContent      || 'Wait for doctor review and all laboratory results before preparation.',
+        unpaid:  document.querySelector('[data-pharmacy-unpaid-label]')?.textContent       || 'Wait for cashier payment; patient returns with receipt.',
+        paid:    document.querySelector('[data-pharmacy-paid-label]')?.textContent         || 'Verify the paid receipt and dispense medicine.',
+        open:    document.querySelector('[data-pharmacy-open-label]')?.textContent         || 'Open pharmacy',
     };
     const cashierTaskLabels = {
         online: document.querySelector('[data-cashier-task-online-label]')?.textContent || 'Updating automatically',
-        empty: document.querySelector('[data-cashier-task-empty-label]')?.textContent || 'No invoices are waiting for payment.',
-        open: document.querySelector('[data-cashier-open-label]')?.textContent || 'Open invoice'
+        empty:  document.querySelector('[data-cashier-task-empty-label]')?.textContent  || 'No invoices are waiting for payment.',
+        open:   document.querySelector('[data-cashier-open-label]')?.textContent        || 'Open invoice',
     };
     const receptionTaskLabels = {
-        online: document.querySelector('[data-reception-task-online-label]')?.textContent || 'Updating automatically',
-        empty: document.querySelector('[data-reception-task-empty-label]')?.textContent || 'No follow-up patients are due for reception today.',
-        checkin: document.querySelector('[data-reception-checkin-label]')?.textContent || 'Check in follow-up'
+        online:  document.querySelector('[data-reception-task-online-label]')?.textContent || 'Updating automatically',
+        empty:   document.querySelector('[data-reception-task-empty-label]')?.textContent  || 'No follow-up patients are due for reception today.',
+        checkin: document.querySelector('[data-reception-checkin-label]')?.textContent     || 'Check in follow-up',
     };
     const statusLabels = new Map(
         [...document.querySelectorAll('[data-live-status-label]')]
-            .map((element) => [element.dataset.liveStatusLabel, element.textContent])
+            .map((el) => [el.dataset.liveStatusLabel, el.textContent])
     );
+
     let refreshing = false;
 
     function element(tag, className, text) {
@@ -67,20 +140,16 @@
         const row = document.createElement('tr');
         const queue = element('td');
         queue.append(element('span', 'queue-number', String(item.queue_number)));
-
         const patient = element('td');
         const patientLink = element('a', 'person-name', item.full_name);
         patientLink.href = `?page=visit&id=${encodeURIComponent(item.id)}`;
         patient.append(patientLink, element('div', 'person-meta', `${item.patient_number} · ${item.gender}`));
-
         row.append(queue, patient, element('td', '', item.phone || '—'), element('td', '', item.reason_for_visit || '—'));
-
         const stage = element('td');
         const badgeClass = ['Completed'].includes(item.status) ? 'green'
             : ['Waiting', 'Waiting for Results'].includes(item.status) ? 'amber'
-                : ['Ready for Doctor', 'Results Available', 'Ready for Pharmacy'].includes(item.status) ? 'blue' : '';
+            : ['Ready for Doctor', 'Results Available', 'Ready for Pharmacy'].includes(item.status) ? 'blue' : '';
         stage.append(element('span', `badge${badgeClass ? ` ${badgeClass}` : ''}`, statusLabels.get(item.status) || item.status));
-
         const action = element('td');
         const openLink = element('a', 'btn btn-light btn-small', openLabel);
         openLink.href = patientLink.href;
@@ -93,14 +162,11 @@
         const row = document.createElement('tr');
         const queue = element('td');
         queue.append(element('span', 'queue-number', String(item.queue_number)));
-
         const patient = element('td');
         patient.append(element('strong', '', item.full_name), element('div', 'person-meta', item.patient_number));
-
         const stage = element('td');
         const badgeClass = item.status === 'Results Available' ? 'blue' : 'amber';
         stage.append(element('span', `badge ${badgeClass}`, statusLabels.get(item.status) || item.status));
-
         const action = element('td', '', doctorTaskInstructions.get(item.status) || '');
         const open = element('td');
         const openLink = element('a', 'btn btn-primary btn-small', openLabel);
@@ -116,7 +182,8 @@
         patient.append(element('strong', '', item.full_name), element('div', 'person-meta', `${item.patient_number} · Queue #${item.queue_number}`));
         row.append(patient, element('td', '', `#${item.prescription_id} · ${statusLabels.get(item.prescription_status) || item.prescription_status}`));
         const isPaid = Number(item.paid) + 0.00001 >= Number(item.invoice_total);
-        const next = item.prescription_status === 'Pending' ? (item.can_prepare_prescription ? pharmacyTaskLabels.pending : pharmacyTaskLabels.waiting)
+        const next = item.prescription_status === 'Pending'
+            ? (item.can_prepare_prescription ? pharmacyTaskLabels.pending : pharmacyTaskLabels.waiting)
             : (!item.invoice_id || !isPaid ? pharmacyTaskLabels.unpaid : pharmacyTaskLabels.paid);
         row.append(element('td', '', next));
         const action = element('td');
@@ -155,13 +222,10 @@
         return row;
     }
 
-    function replaceTaskRows(container, items, createRow, emptyLabel, colSpan) {
-        if (items.length) {
-            container.replaceChildren(...items.map(createRow));
-            return;
-        }
+    function replaceTaskRows(container, items, createRow, emptyText, colSpan) {
+        if (items.length) { container.replaceChildren(...items.map(createRow)); return; }
         const row = document.createElement('tr');
-        const cell = element('td', 'empty', emptyLabel);
+        const cell = element('td', 'empty', emptyText);
         cell.colSpan = colSpan;
         row.append(cell);
         container.replaceChildren(row);
@@ -178,78 +242,53 @@
                 || !Array.isArray(snapshot.reception_tasks)) {
                 throw new Error(snapshot.error || `Live refresh failed (${response.status}).`);
             }
-            for (const key of ['today_count', 'waiting_count', 'lab_count', 'follow_count']) {
-                const value = document.querySelector(`[data-live-stat="${key}"]`);
-                if (value) value.textContent = String(snapshot[key]);
-            }
-            if (snapshot.queue.length) {
-                queueBody.replaceChildren(...snapshot.queue.map(createQueueRow));
-            } else {
-                const row = document.createElement('tr');
-                const cell = element('td', 'empty', emptyLabel);
-                cell.colSpan = 6;
-                row.append(cell);
-                queueBody.replaceChildren(row);
-            }
-            if (liveStatus) {
-                liveStatus.textContent = onlineLabel;
-                liveStatus.dataset.state = 'online';
-            }
-            if (doctorTasks && doctorTaskQueue && doctorTaskCount) {
-                doctorTaskCount.textContent = String(snapshot.doctor_tasks.length);
-                doctorTaskCount.setAttribute('aria-label', `${snapshot.doctor_tasks.length} ${doctorTaskCountLabel}`);
-                if (snapshot.doctor_tasks.length) {
-                    doctorTaskQueue.replaceChildren(...snapshot.doctor_tasks.map(createDoctorTaskRow));
+
+            // Always update notification bell regardless of page
+            updateNotifications(snapshot);
+
+            // Dashboard-only updates
+            if (dashboard) {
+                for (const key of ['today_count', 'waiting_count', 'lab_count', 'follow_count']) {
+                    const value = document.querySelector(`[data-live-stat="${key}"]`);
+                    if (value) value.textContent = String(snapshot[key]);
+                }
+                if (snapshot.queue.length) {
+                    queueBody.replaceChildren(...snapshot.queue.map(createQueueRow));
                 } else {
                     const row = document.createElement('tr');
-                    const cell = element('td', 'empty', doctorTaskEmptyLabel);
-                    cell.colSpan = 5;
+                    const cell = element('td', 'empty', emptyLabel);
+                    cell.colSpan = 6;
                     row.append(cell);
-                    doctorTaskQueue.replaceChildren(row);
+                    queueBody.replaceChildren(row);
                 }
-                if (doctorTaskStatus) {
-                    doctorTaskStatus.textContent = doctorTaskOnlineLabel;
-                    doctorTaskStatus.dataset.state = 'online';
+                if (liveStatus) { liveStatus.textContent = onlineLabel; liveStatus.dataset.state = 'online'; }
+                if (doctorTasks && doctorTaskQueue && doctorTaskCount) {
+                    doctorTaskCount.textContent = String(snapshot.doctor_tasks.length);
+                    doctorTaskCount.setAttribute('aria-label', `${snapshot.doctor_tasks.length} ${doctorTaskCountLabel}`);
+                    replaceTaskRows(doctorTaskQueue, snapshot.doctor_tasks, createDoctorTaskRow, doctorTaskEmptyLabel, 5);
+                    if (doctorTaskStatus) { doctorTaskStatus.textContent = doctorTaskOnlineLabel; doctorTaskStatus.dataset.state = 'online'; }
                 }
-            }
-            if (pharmacyTaskPanel && pharmacyTaskQueue && pharmacyTaskCount) {
-                pharmacyTaskCount.textContent = String(snapshot.pharmacy_tasks.length);
-                replaceTaskRows(pharmacyTaskQueue, snapshot.pharmacy_tasks, createPharmacyTaskRow, pharmacyTaskLabels.empty, 4);
-                if (pharmacyTaskStatus) {
-                    pharmacyTaskStatus.textContent = pharmacyTaskLabels.online;
-                    pharmacyTaskStatus.dataset.state = 'online';
+                if (pharmacyTaskPanel && pharmacyTaskQueue && pharmacyTaskCount) {
+                    pharmacyTaskCount.textContent = String(snapshot.pharmacy_tasks.length);
+                    replaceTaskRows(pharmacyTaskQueue, snapshot.pharmacy_tasks, createPharmacyTaskRow, pharmacyTaskLabels.empty, 4);
+                    if (pharmacyTaskStatus) { pharmacyTaskStatus.textContent = pharmacyTaskLabels.online; pharmacyTaskStatus.dataset.state = 'online'; }
                 }
-            }
-            if (cashierTaskPanel && cashierTaskQueue && cashierTaskCount) {
-                cashierTaskCount.textContent = String(snapshot.cashier_tasks.length);
-                replaceTaskRows(cashierTaskQueue, snapshot.cashier_tasks, createCashierTaskRow, cashierTaskLabels.empty, 4);
-                if (cashierTaskStatus) {
-                    cashierTaskStatus.textContent = cashierTaskLabels.online;
-                    cashierTaskStatus.dataset.state = 'online';
+                if (cashierTaskPanel && cashierTaskQueue && cashierTaskCount) {
+                    cashierTaskCount.textContent = String(snapshot.cashier_tasks.length);
+                    replaceTaskRows(cashierTaskQueue, snapshot.cashier_tasks, createCashierTaskRow, cashierTaskLabels.empty, 4);
+                    if (cashierTaskStatus) { cashierTaskStatus.textContent = cashierTaskLabels.online; cashierTaskStatus.dataset.state = 'online'; }
                 }
-            }
-            if (receptionTaskPanel && receptionTaskQueue && receptionTaskCount) {
-                receptionTaskCount.textContent = String(snapshot.reception_tasks.length);
-                replaceTaskRows(receptionTaskQueue, snapshot.reception_tasks, createReceptionTaskRow, receptionTaskLabels.empty, 4);
-                if (receptionTaskStatus) {
-                    receptionTaskStatus.textContent = receptionTaskLabels.online;
-                    receptionTaskStatus.dataset.state = 'online';
+                if (receptionTaskPanel && receptionTaskQueue && receptionTaskCount) {
+                    receptionTaskCount.textContent = String(snapshot.reception_tasks.length);
+                    replaceTaskRows(receptionTaskQueue, snapshot.reception_tasks, createReceptionTaskRow, receptionTaskLabels.empty, 4);
+                    if (receptionTaskStatus) { receptionTaskStatus.textContent = receptionTaskLabels.online; receptionTaskStatus.dataset.state = 'online'; }
                 }
             }
         } catch (error) {
-            if (liveStatus) {
-                liveStatus.textContent = errorLabel;
-                liveStatus.dataset.state = 'error';
-            }
-            if (doctorTaskStatus) {
-                doctorTaskStatus.textContent = errorLabel;
-                doctorTaskStatus.dataset.state = 'error';
-            }
-            for (const taskStatus of [pharmacyTaskStatus, cashierTaskStatus, receptionTaskStatus]) {
-                if (taskStatus) {
-                    taskStatus.textContent = errorLabel;
-                    taskStatus.dataset.state = 'error';
-                }
+            if (liveStatus) { liveStatus.textContent = errorLabel; liveStatus.dataset.state = 'error'; }
+            if (doctorTaskStatus) { doctorTaskStatus.textContent = errorLabel; doctorTaskStatus.dataset.state = 'error'; }
+            for (const s of [pharmacyTaskStatus, cashierTaskStatus, receptionTaskStatus]) {
+                if (s) { s.textContent = errorLabel; s.dataset.state = 'error'; }
             }
             console.error('Dashboard live refresh failed:', error);
         } finally {

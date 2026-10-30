@@ -23,7 +23,19 @@ ob_start('translateHtml');
         <div class="sidebar-bottom"><strong><?= h($user['full_name']) ?></strong><?= h($user['role']) ?><form method="post" style="margin:0"><input type="hidden" name="csrf" value="<?= h($_SESSION['csrf']) ?>"><input type="hidden" name="action" value="logout"><button class="btn btn-light btn-small" style="margin-top:12px">Sign out</button></form></div>
     </aside>
     <main class="main">
-        <header class="topbar"><span class="date"><?= h(localizedToday()) ?></span><div class="topbar-tools"><?php languageSelector($page, $page === 'visit' ? (int)($_GET['id'] ?? 0) : null); ?><span class="user-chip"><?= h($clinic['name']) ?> · <?= h($user['full_name']) ?> · <?= h($user['role']) ?></span></div></header>
+        <header class="topbar"><span class="date"><?= h(localizedToday()) ?></span><div class="topbar-tools"><?php languageSelector($page, $page === 'visit' ? (int)($_GET['id'] ?? 0) : null); ?>
+        <div class="notif-wrap" id="notif-wrap">
+            <button class="notif-bell" id="notif-bell" aria-label="Notifications" aria-expanded="false" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                <span class="notif-count" id="notif-count" hidden>0</span>
+            </button>
+            <div class="notif-dropdown" id="notif-dropdown" hidden>
+                <div class="notif-header"><strong>Notifications</strong><span class="notif-total" id="notif-total"></span></div>
+                <ul class="notif-list" id="notif-list"></ul>
+                <?php if ($user['role'] === 'Admin'): ?><div class="notif-footer"><a href="?page=dashboard">View full dashboard &rarr;</a></div><?php endif; ?>
+            </div>
+        </div>
+        <span class="user-chip"><?= h($clinic['name']) ?> · <?= h($user['full_name']) ?> · <?= h($user['role']) ?></span></div></header>
         <div class="content">
             <?php if ($flashMessage): ?><div class="notice <?= h($flashMessage['type']) ?>"><?= h($flashMessage['message']) ?></div><?php endif; ?>
             <?php
@@ -77,6 +89,7 @@ ob_start('translateHtml');
     </main>
 </div>
 <script>
+    window._notifRole = <?= json_encode($user['role']) ?>;
     const checkinDialog = document.querySelector('.quick-checkin');
     document.querySelector('[data-checkin-open]')?.addEventListener('click', () => checkinDialog.showModal());
     document.querySelector('[data-checkin-close]')?.addEventListener('click', () => checkinDialog.close());
